@@ -1,4 +1,4 @@
-import { FC, useCallback, useState } from "react";
+import { FC, useCallback } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 
 import {
@@ -18,8 +18,6 @@ export const Voting: FC = () => {
   const ourWallet = useWallet();
   const { connection } = useConnection();
 
-  const [voteBank, setVoteBank] = useState(null);
-
   const getProvider = () => {
     const provider = new AnchorProvider(
       connection,
@@ -29,54 +27,24 @@ export const Voting: FC = () => {
     return provider;
   };
 
-  const [voteBanks, setVoteBanks] = useState([]);
-
-  const getVoteBanks = useCallback(async () => {
-    const anchProvider = getProvider();
-    const program = new Program(idl_object, programID, anchProvider);
-
-    try {
-      Promise.all(
-        (await connection.getProgramAccounts(programID)).map(async (voteBank) => ({
-          ...(await program.account.voteBank.fetch(voteBank.pubkey)),
-          pubkey: voteBank.pubkey,
-        }))
-      ).then((voteBanks) => {
-        console.log(voteBanks);
-        setVoteBanks(voteBanks);
-      });
-    } catch (error) {
-      console.error("error getting vote banks" + error);
-    }
-  }, [connection, programID]);
-
   const initVoteBank = async () => {
     try {
       const anchProvider = getProvider();
       const program = new Program(idl_object, programID, anchProvider);
-  
-      const seeds = ["vote_account"];
-      const [voteAccount] = await PublicKey.findProgramAddress(seeds, program.programId);
-  
+
       await program.rpc.initVoteBank({
         accounts: {
-          voteAccount,
+          voteAccount: anchProvider.wallet.publicKey,
           signer: anchProvider.wallet.publicKey,
           systemProgram: web3.SystemProgram.programId,
         },
       });
-  
-      const fetchedVoteBank = await program.account.voteBank.fetch(voteAccount);
-  
+
       console.log("Vote bank initialized.");
-      setVoteBank(fetchedVoteBank);
     } catch (error) {
       console.error("Error initializing vote bank: " + error);
     }
   };
-  
-  
-  
 
   const voteForGM = async () => {
     gibVote(0);
@@ -90,24 +58,27 @@ export const Voting: FC = () => {
     try {
       const anchProvider = getProvider();
       const program = new Program(idl, programID, anchProvider);
-
+  
       // Pass VoteType as argument
       const voteType = {
         __variant__: voteTypeIndex === 0 ? "GM" : "GN",
       };
-
+  
       await program.rpc.gibVote(voteType, {
         accounts: {
           voteAccount: anchProvider.wallet.publicKey,
           signer: anchProvider.wallet.publicKey,
         },
       });
-
+  
       console.log("Voted for " + (voteTypeIndex === 0 ? "GM" : "GN"));
     } catch (error) {
       console.error("Error voting: " + error);
     }
   };
+  
+  
+  
 
   return (
     <>
@@ -131,14 +102,6 @@ export const Voting: FC = () => {
           <span>Vote GN</span>
         </button>
       </div>
-      {voteBank && (
-        <div className="md:hero-content flex flex-col">
-          <h1>Vote Bank {voteBank.pubkey.toBase58()}</h1>
-          <span>GM votes: {voteBank.gm.toString()}</span>
-          <span>GN votes: {voteBank.gn.toString()}</span>
-        </div>
-      )}
     </>
   );
-  
-}
+};
